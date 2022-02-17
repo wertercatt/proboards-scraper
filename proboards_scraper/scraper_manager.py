@@ -10,7 +10,6 @@ import selenium.webdriver
 from proboards_scraper.database import Database
 from .http_requests import get_source, download_image
 
-
 logger = logging.getLogger(__name__)
 
 

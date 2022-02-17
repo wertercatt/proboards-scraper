@@ -10,7 +10,8 @@ import aiofiles
 import aiohttp
 import bs4
 import selenium.webdriver
-
+import undetected_chromedriver as uc
+DRIVER = uc.Chrome()
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ def test_ico(h: bytes, f):
 imghdr.tests.append(test_ico)
 
 
-def get_chrome_driver() -> selenium.webdriver.Chrome:
+def get_chrome_driver():
     """
     Returns an instance of a Selenium Chrome driver with the headless
     option set to ``True``.
@@ -37,15 +38,16 @@ def get_chrome_driver() -> selenium.webdriver.Chrome:
     Returns:
         Headless Chrome driver.
     """
-    chrome_opts = selenium.webdriver.ChromeOptions()
-    chrome_opts.headless = True
-    driver = selenium.webdriver.Chrome(options=chrome_opts)
-    return driver
+    #chrome_opts = selenium.webdriver.ChromeOptions()
+    #chrome_opts.headless = True
+    #driver = selenium.webdriver.Chrome(options=chrome_opts)
+    
+    return DRIVER
 
 
 def get_login_cookies(
     home_url: str, username: str, password: str,
-    driver: selenium.webdriver.Chrome = None, page_load_wait: int = 1
+    driver = None, page_load_wait: int = 1
 ) -> List[dict]:
     """
     Logs in to a Proboards account using Selenium and returns the cookies from
@@ -165,9 +167,14 @@ async def get_source(
         Page source.
     """
     logger.debug(f"Getting page source for {url}")
+   
     # TODO: check response HTTP status code
-    resp = await session.get(url)
-    text = await resp.text()
+    #resp = await session.get(url)
+    #text = await resp.text()
+   
+    driver = get_chrome_driver()
+    driver.get(url)
+    text = driver.page_source
     return bs4.BeautifulSoup(text, "html.parser")
 
 

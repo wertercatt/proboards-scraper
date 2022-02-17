@@ -35,6 +35,7 @@ async def scrape_user(url: str, manager: ScraperManager) -> None:
     }
 
     source = await manager.get_source(url)
+    time.sleep(4.5)
     user_container = source.find("div", {"class": "show-user"})
 
     # Get display name and group.
@@ -215,7 +216,7 @@ def scrape_user_urls(source: bs4.BeautifulSoup) -> Tuple[list, str]:
         member_hrefs.append(href)
 
     # Get the URL for the next page button if it's enabled.
-    next_ = source.find("li", {"class": "next"}).find("a")
+    next_ = source.find("li", {"class": "ui-pagination-next"}).find("a")
     if next_.has_attr("href"):
         next_href = next_["href"]
 
@@ -242,7 +243,7 @@ async def scrape_users(url: str, manager: ScraperManager) -> None:
     member_hrefs.extend(_member_hrefs)
 
     while next_href:
-        next_url = f"{base_url}{next_href}"
+        next_url = next_href #f"{base_url}{next_href}"
         source = await manager.get_source(next_url)
         _member_hrefs, next_href = scrape_user_urls(source)
         member_hrefs.extend(_member_hrefs)
@@ -418,22 +419,74 @@ async def scrape_thread(url: str, manager: ScraperManager) -> None:
     }
     await manager.content_queue.put(thread)
 
+    def parse_likes(like_):
+        more = like_.find_elements_by_class_name("view-likes")
+        if len(more) > 0:
+            users = []
+            more[0].click()
+            while True:
+                time.sleep(0.5)
+                user_dialog = manager.driver.find_elements_by_class_name("users")
+                user_dialog = user_dialog[-1]
+                users_page = [x.get_attribute("data-id") for x in user_dialog.find_elements_by_class_name("user-link")]
+
+                users.extend(users_page)
+
+                
+                next_button = user_dialog.find_elements_by_class_name("ui-pagination-next")[0]
+                button_classes = next_button.get_attribute("class").split(" ")
+
+                if "state-disabled" in button_classes:
+                    break
+                #if next_button.find_elements_by_css_selector('state-disabled'):
+
+                next_button.click()    
+        else:
+            user_likes = like_.find_elements_by_class_name("user-link")
+            users = [x.get_attribute("href").split("/")[-1] for x in user_likes]
+        
+        return users
+        
     pages_remaining = True
     while pages_remaining:
+        post_likes = {}
+        
+        print(len(manager.driver.find_elements_by_class_name("likes")))
+        for like_ in manager.driver.find_elements_by_class_name("likes"):
+            element = like_
+            while True:
+                element = element.find_element_by_xpath("..")
+                if element.tag_name == "tr":
+                    classes = element.get_attribute("class").split(" ")
+                    if "post" in classes:
+                        break
+                        
+            post_id = element.get_attribute("id")
+            pid = post_id.split("-")[1]
+            users = parse_likes(like_)
+            post_likes[pid] = users
+        print("like dict:", post_likes)
+
         posts = post_container.findAll("tr", class_="post")
 
-        for post_ in posts:
+        for post_ in posts:      
+        
             # Each post <tr> tag has an id attribute of the form
             # <tr id="post-1234">, where 1234 is the post id.
             post_id = int(post_["id"].split("-")[1])
 
             # "left panel" contains info about the user who made the post.
             left_panel = post_.find("td", class_="left-panel")
-
+            
+            deleted_user=False
+            
             if guest_ := left_panel.find("span", class_="user-guest"):
                 guest_user_name = guest_.text
                 guest_id = manager.insert_guest(guest_user_name)
-                user_id = guest_id
+                user_id = guest_id                
+            elif(left_panel.find("div", class_="deleted-mini-profile")):
+                user_id = -1
+                deleted_user=True
             else:
                 # <a> tag href attribute is of the form "/user/5".
                 user_link = left_panel.find("a", class_="user-link")
@@ -458,11 +511,16 @@ async def scrape_thread(url: str, manager: ScraperManager) -> None:
                 edit_user_anchor = edited_by.find("a")
 
                 if edit_user_anchor is None:
-                    # This represents the case where a guest user has edited
-                    # their own post.
-                    edit_guest = edited_by.find("span", class_="user-guest")
-                    guest_user_name = edit_guest.text
-                    edit_user_id = manager.insert_guest(guest_user_name)
+                
+                    if deleted_user:
+                        edit_user_href="Deleted User"
+                        edit_user_id=-1
+                    else:
+                        # This represents the case where a guest user has edited
+                        # their own post.
+                        edit_guest = edited_by.find("span", class_="user-guest")
+                        guest_user_name = edit_guest.text
+                        edit_user_id = manager.insert_guest(guest_user_name)
                 else:
                     edit_user_href = edited_by.find("a")["href"]
                     edit_user_id = int(edit_user_href.split("/")[-1])
@@ -482,13 +540,14 @@ async def scrape_thread(url: str, manager: ScraperManager) -> None:
 
         # Continue to next page, if any.
         control_bar = post_container.find("div", class_="control-bar")
-        next_btn = control_bar.find("li", class_="next")
+        next_btn = control_bar.find("li", class_="ui-pagination-next")
 
         if "state-disabled" in next_btn["class"]:
             pages_remaining = False
         else:
             next_href = next_btn.find("a")["href"]
-            next_url = f"{base_url}{next_href}"
+            next_url = next_href #f"{base_url}{next_href}"
+            print("NEXT PAGE:" + next_url)
             source = await manager.get_source(next_url)
             post_container = source.find("div", class_="container posts")
 
