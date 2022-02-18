@@ -208,6 +208,7 @@ class ScraperManager:
             "post": self.db.insert_post,
             "shoutbox_post": self.db.insert_shoutbox_post,
             "thread": self.db.insert_thread,
+            "like": self.db.insert_like,
         }
 
         all_content_added = False

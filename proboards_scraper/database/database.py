@@ -7,7 +7,7 @@ import sqlalchemy.orm
 
 from .schema import (
     Base, Avatar, Board, Category, CSS, Image, Moderator, Poll, PollOption,
-    PollVoter, Post, ShoutboxPost, Thread, User
+    PollVoter, Post, ShoutboxPost, Thread, User, Like
 )
 
 
@@ -37,14 +37,15 @@ def serialize(
             * :class:`ShoutboxPost`
             * :class:`Thread`
             * :class:`User`
-
+            * :class:`Like`
+            
     Returns: Serialized version of the object (or list of objects).
     """
     if isinstance(
         obj,
         (
             Board, Category, Image, Poll, PollOption, PollVoter, Post, Thread,
-            User
+            User, Like
         )
     ):
         dict_ = {}
@@ -148,6 +149,7 @@ class Database:
                 * :class:`ShoutboxPost`
                 * :class:`Thread`
                 * :class:`User`
+                * :class:`Like`
 
             filters: A dict of key/value pairs on which to filter the query
                 results. The keys should correspond to the attributes of the
@@ -420,6 +422,25 @@ class Database:
             f"Post {post.id} (thread {post.thread_id}, user {post.user_id})",
             inserted)
         return post
+        
+    def insert_like(self, like_: dict, update: bool = False) -> Post:
+        """
+        Insert a like into the database; this method wraps :meth:`insert`.
+
+        Args:
+            like\_: A dict containing the keyword args (attributes) needed to
+                instantiate a :class:`Like` object.
+            update: See :meth:`insert`.
+
+        Returns:
+            The inserted (or updated) :class:`Like` object.
+        """
+        like = Like(**like_)
+        inserted, like = self.insert(like, update=update)
+        self._insert_log_msg(
+            f"Like {like.id} (post {like.post_id}, user {like.user_id})",
+            inserted)
+        return like
 
     def insert_shoutbox_post(
         self, shoutbox_post_: dict, update: bool = False

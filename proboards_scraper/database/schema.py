@@ -271,6 +271,21 @@ class Post(Base):
         "user_id", ForeignKey("user.id"), nullable=False
     )
 
+class Like(Base):
+    """
+    This table holds information for the likes of each post.
+
+    Attributes:
+        id (str): Like id, Made from post id and user id.
+        post_id (int): Post id of the liked post.
+        user_id (int): User id of the user id who liked the post.
+    """
+    __tablename__ = "like"
+
+    id = Column("id", String, primary_key=True, autoincrement=False)
+    user_id = Column("user_id", ForeignKey("user.id"))
+    post_id = Column("post_id", ForeignKey("post.id"))
+
 
 class ShoutboxPost(Base):
     """

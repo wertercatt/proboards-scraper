@@ -425,7 +425,7 @@ async def scrape_thread(url: str, manager: ScraperManager) -> None:
             users = []
             more[0].click()
             while True:
-                time.sleep(0.5)
+                time.sleep(1)
                 user_dialog = manager.driver.find_elements_by_class_name("users")
                 user_dialog = user_dialog[-1]
                 users_page = [x.get_attribute("data-id") for x in user_dialog.find_elements_by_class_name("user-link")]
@@ -435,7 +435,7 @@ async def scrape_thread(url: str, manager: ScraperManager) -> None:
                 
                 next_button = user_dialog.find_elements_by_class_name("ui-pagination-next")[0]
                 button_classes = next_button.get_attribute("class").split(" ")
-
+                #todo: check if enough time has passed before terminating early
                 if "state-disabled" in button_classes:
                     break
                 #if next_button.find_elements_by_css_selector('state-disabled'):
@@ -451,7 +451,6 @@ async def scrape_thread(url: str, manager: ScraperManager) -> None:
     while pages_remaining:
         post_likes = {}
         
-        print(len(manager.driver.find_elements_by_class_name("likes")))
         for like_ in manager.driver.find_elements_by_class_name("likes"):
             element = like_
             while True:
@@ -465,7 +464,16 @@ async def scrape_thread(url: str, manager: ScraperManager) -> None:
             pid = post_id.split("-")[1]
             users = parse_likes(like_)
             post_likes[pid] = users
-        print("like dict:", post_likes)
+
+        for post_id in post_likes:
+            for user_id in post_likes[post_id]:
+                like_ = {
+                    "type": "like",
+                    "id": post_id + "-" + user_id,
+                    "post_id": int(post_id),
+                    "user_id": int(user_id),                    
+                }
+                await manager.content_queue.put(like_)
 
         posts = post_container.findAll("tr", class_="post")
 
