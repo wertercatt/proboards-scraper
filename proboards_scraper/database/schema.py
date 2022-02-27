@@ -287,6 +287,20 @@ class Like(Base):
     post_id = Column("post_id", ForeignKey("post.id"))
 
 
+class Check(Base):
+    """
+    This table holds information for whether something has been scraped.
+
+    Attributes:
+        id (str): Check id.
+        date (int): When scraped (Unix timestamp).
+    """
+    __tablename__ = "check"
+
+    id = Column("id", String, primary_key=True, autoincrement=False)
+    date = Column("date", Integer)
+
+
 class ShoutboxPost(Base):
     """
     This table holds information for each shoutbox post.

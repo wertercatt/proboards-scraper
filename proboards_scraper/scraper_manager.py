@@ -23,8 +23,8 @@ class ScraperManager:
         image_dir: pathlib.Path = None,
         user_queue: asyncio.Queue = None,
         request_threshold: int = 15,
-        short_delay_time: float = 1.5,
-        long_delay_time: float = 20.0
+        short_delay_time: float = 1,
+        long_delay_time: float = 4.0
     ):
         """
         This class has three purposes: 1) to store references to objects that
@@ -209,6 +209,7 @@ class ScraperManager:
             "shoutbox_post": self.db.insert_shoutbox_post,
             "thread": self.db.insert_thread,
             "like": self.db.insert_like,
+            "check": self.db.insert_check,
         }
 
         all_content_added = False

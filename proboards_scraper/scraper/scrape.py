@@ -13,6 +13,9 @@ from .utils import int_, split_url
 from proboards_scraper import ScraperManager
 
 
+#TODO: 1) QUERY LAST RECORDED POST 2) COUNT UP GET ALL FUTURE POSTS 3) CHECK IF THREAD IN DATABASE BEFORE ADDING POST
+#TODO: 1) GET LAST USER ADDED 2) COUNT UP GET ALL FUTURE USERS 
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,19 +32,24 @@ async def scrape_user(url: str, manager: ScraperManager) -> None:
     # Get user id from URL, eg, "https://xyz.proboards.com/user/42" has
     # user id 42. We can exploit os.path.split() to grab everything right
     # of the last backslash.
+    uid=os.path.split(url)[1]
     user = {
         "url": url,
-        "id": int(os.path.split(url)[1])
+        "id": int(uid)
     }
 
+    check = manager.db.query_check(uid, type="user")
+
+    if check is not None:
+        print("User " + uid + " is in database.")
+        #return
+
     source = await manager.get_source(url)
-    time.sleep(4.5)
+    time.sleep(3)
     user_container = source.find("div", {"class": "show-user"})
 
     # Get display name and group.
-    name_and_group = user_container.find(
-        "div", class_="name_and_group float-right"
-    )
+    name_and_group = user_container.find("div", class_="name_and_group float-right")
     user["name"] = name_and_group.find("span", class_="big_username").text
 
     # The group name is contained between two <br> tags and is the element's
@@ -89,33 +97,33 @@ async def scrape_user(url: str, manager: ScraperManager) -> None:
     status_input = content_boxes[0].find("td", class_="status-input")
     if status_input:
         content_boxes.pop(0)
+    for content_box in content_boxes: #badges take up the first content_box
+        for row in content_box.find_all("tr"):
 
-    for row in content_boxes[0].find_all("tr"):
-        row_data = row.find_all("td")
-        heading = row_data[0].text.strip().rstrip(":")
-        val = row_data[1]
-
-        if heading == "Age":
-            user["age"] = int(val.text)
-        elif heading == "Birthday":
-            user["birthdate"] = val.text
-        elif heading == "Date Registered":
-            user["date_registered"] = int(val.find("abbr")["data-timestamp"])
-        elif heading == "Email":
-            user["email"] = val.text
-        elif heading == "Gender":
-            user["gender"] = val.text
-        elif heading == "Latest Status":
-            user["latest_status"] = val.find("span").text
-        elif heading == "Location":
-            user["location"] = val.text
-        elif heading == "Posts":
-            # Remove commas from post count (eg, "1,500" to "1500").
-            user["post_count"] = int_(val.text)
-        elif heading == "Web Site":
-            website_anchor = val.find("a")
-            user["website_url"] = website_anchor.get("href")
-            user["website"] = website_anchor.text
+            row_data = row.find_all("td")
+            heading = row_data[0].text.strip().rstrip(":")
+            val = row_data[1]
+            if heading == "Age":
+                user["age"] = int(val.text)
+            elif heading == "Birthday":
+                user["birthdate"] = val.text
+            elif heading == "Date Registered":
+                user["date_registered"] = int(val.find("abbr")["data-timestamp"])
+            elif heading == "Email":
+                user["email"] = val.text
+            elif heading == "Gender":
+                user["gender"] = val.text
+            elif heading == "Latest Status":
+                user["latest_status"] = val.find("span").text
+            elif heading == "Location":
+                user["location"] = val.text
+            elif heading == "Posts":
+                # Remove commas from post count (eg, "1,500" to "1500").
+                user["post_count"] = int_(val.text)
+            elif heading == "Web Site":
+                website_anchor = val.find("a")
+                user["website_url"] = website_anchor.get("href")
+                user["website"] = website_anchor.text
 
     # The rest of the relevant content boxes may or not be present.
     for content_box in content_boxes[1:]:
@@ -184,8 +192,15 @@ async def scrape_user(url: str, manager: ScraperManager) -> None:
         "user_id": user["id"],
         "image_id": image_id,
     }
+
     manager.db.insert_avatar(avatar)
     logger.debug(f"Got user profile info for user {user['name']}")
+
+    check_ = {
+        "id": "user-" + uid,
+        "date": time.time_ns()
+    }
+    manager.db.insert_check(check_)
 
 
 def scrape_user_urls(source: bs4.BeautifulSoup) -> Tuple[list, str]:
@@ -236,29 +251,33 @@ async def scrape_users(url: str, manager: ScraperManager) -> None:
     logger.info(f"Getting user profile URLs from {url}")
 
     base_url, _ = split_url(url)
-    member_hrefs = []
 
-    source = await manager.get_source(url)
-    _member_hrefs, next_href = scrape_user_urls(source)
-    member_hrefs.extend(_member_hrefs)
+
+    next_href = True
+    next_url = url
 
     while next_href:
-        next_url = next_href #f"{base_url}{next_href}"
+        member_hrefs = []
         source = await manager.get_source(next_url)
-        _member_hrefs, next_href = scrape_user_urls(source)
+        _member_hrefs, next_url = scrape_user_urls(source)
         member_hrefs.extend(_member_hrefs)
 
-    member_urls = [f"{base_url}{member_href}" for member_href in member_hrefs]
-    logger.info(f"Found {len(member_urls)} user profile URLs")
+        member_urls = [f"{base_url}{member_href}" for member_href in member_hrefs]
+        logger.info(f"Found {len(member_urls)} user profile URLs")
 
-    loop = asyncio.get_running_loop()
-    tasks = []
+        for member_url in member_urls:
+            await scrape_user(member_url, manager)
+        
+        '''
+        loop = asyncio.get_running_loop()
+        tasks = []
 
-    for member_url in member_urls:
-        task = loop.create_task(scrape_user(member_url, manager))
-        tasks.append(task)
+        for member_url in member_urls:
+            task = loop.create_task(scrape_user(member_url, manager))
+            tasks.append(task)
 
-    await asyncio.wait(tasks)
+        await asyncio.wait(tasks)
+        '''
 
 
 async def scrape_poll(
@@ -338,12 +357,20 @@ async def scrape_thread(url: str, manager: ScraperManager) -> None:
     base_url, url_path = split_url(url)
     thread_id = int(url_path.split("/")[2])
 
+    print("thread id: " + str(thread_id))
+    check = manager.db.query_check(thread_id, type="thread")
+
+    if check is not None:
+        print("Thread is in database.")
+        return
+
     # Polls are loaded with the aid of JavaScript; if the thread contains
     # a poll, we ust selenium/Chrome to get the source. However, the source
     # obtained through selenium is different from the source obtained without
     # it, so we must also obtain the source via aiohttp as usual to ensure
     # that the rest of the elements can be scraped (e.g., the next page button
     # has a different class when JS is enabled).
+
     source = await manager.get_source(url)
 
     # All thread metadata is contained in a particular <script> element in a
@@ -381,7 +408,13 @@ async def scrape_thread(url: str, manager: ScraperManager) -> None:
     # guest user name and get a database user id for the guest.
     if user_id == 0:
         first_post = source.select("tr.post.first")[0]
-        guest_user_name = first_post.find("span", class_="user-guest").text
+
+        guest_user_name = first_post.find("span", class_="user-guest")
+
+        if guest_user_name is None: #weird error if OP is guest and deletes post
+            guest_user_name = "user-guest"
+        else:
+            guest_user_name = guest_user_name.text
         user_id = manager.insert_guest(guest_user_name)
 
     if poll:
@@ -425,20 +458,26 @@ async def scrape_thread(url: str, manager: ScraperManager) -> None:
             users = []
             more[0].click()
             while True:
-                time.sleep(1)
-                user_dialog = manager.driver.find_elements_by_class_name("users")
-                user_dialog = user_dialog[-1]
-                users_page = [x.get_attribute("data-id") for x in user_dialog.find_elements_by_class_name("user-link")]
+                attempts = 5
+                while attempts > 0:
+                    try:
+                        time.sleep(0.8)
+                        user_dialog = manager.driver.find_elements_by_class_name("users")
+                        user_dialog = user_dialog[-1]
+                        users_page = [x.get_attribute("data-id") for x in user_dialog.find_elements_by_class_name("user-link")]
+                        next_button = user_dialog.find_elements_by_class_name("ui-pagination-next")[0]
 
-                users.extend(users_page)
+                        users.extend(users_page)
+                        attempts=0
 
-                
-                next_button = user_dialog.find_elements_by_class_name("ui-pagination-next")[0]
+                    except Exception as e:
+                        attempts -= 1
+                        if attempts < 0: 
+                            raise ValueError("Could not parse like dialog box")
+
                 button_classes = next_button.get_attribute("class").split(" ")
-                #todo: check if enough time has passed before terminating early
-                if "state-disabled" in button_classes:
+                if "state-disabled" in button_classes: 
                     break
-                #if next_button.find_elements_by_css_selector('state-disabled'):
 
                 next_button.click()    
         else:
@@ -498,7 +537,11 @@ async def scrape_thread(url: str, manager: ScraperManager) -> None:
             else:
                 # <a> tag href attribute is of the form "/user/5".
                 user_link = left_panel.find("a", class_="user-link")
-                user_id = int(user_link["href"].split("/")[-1])
+                user_id = user_link["href"]
+                if user_id == "http://support.proboards.com": # proboards staff
+                    user_id = -3
+                else:
+                    user_id = int(user_id.split("/")[-1])
 
             post_content = post_.find("td", class_="content")
             post_info = post_content.find("div", class_="info")
@@ -527,7 +570,12 @@ async def scrape_thread(url: str, manager: ScraperManager) -> None:
                         # This represents the case where a guest user has edited
                         # their own post.
                         edit_guest = edited_by.find("span", class_="user-guest")
-                        guest_user_name = edit_guest.text
+
+                        if edit_guest is None: #weird error if OP is guest and deletes post
+                            guest_user_name = "user-guest"
+                        else:
+                            guest_user_name = edit_guest.text
+
                         edit_user_id = manager.insert_guest(guest_user_name)
                 else:
                     edit_user_href = edited_by.find("a")["href"]
@@ -546,6 +594,7 @@ async def scrape_thread(url: str, manager: ScraperManager) -> None:
             }
             await manager.content_queue.put(post)
 
+
         # Continue to next page, if any.
         control_bar = post_container.find("div", class_="control-bar")
         next_btn = control_bar.find("li", class_="ui-pagination-next")
@@ -559,6 +608,12 @@ async def scrape_thread(url: str, manager: ScraperManager) -> None:
             source = await manager.get_source(next_url)
             post_container = source.find("div", class_="container posts")
 
+
+    check_ = {
+        "id": "thread-" + str(thread_id),
+        "date": time.time_ns()
+    }
+    manager.db.insert_check(check_)
 
 async def scrape_board(url: str, manager: ScraperManager) -> None:
     """
@@ -635,10 +690,17 @@ async def scrape_board(url: str, manager: ScraperManager) -> None:
         board_name = title_heading.text
         password_protected = True
     else:
-        board_name = stats_container.find("div", class_="board-name").text
-        description = stats_container.find(
-            "div", class_="board-description"
-        ).text
+        board_name = stats_container.find("div", class_="board-name")
+        if board_name is not None:
+            board_name = board_name.text
+        else: # if no board name is not provided in the stats container
+            board_name = source.find("h1").text 
+
+        description = stats_container.find("div", class_="board-description")
+        if description is not None:
+            description = description.text
+        else: # if no board description is not provided in the stats container
+            description = ""
 
     board = {
         "type": "board",
@@ -684,13 +746,13 @@ async def scrape_board(url: str, manager: ScraperManager) -> None:
 
             # control-bar contains pagination/navigation buttons.
             control_bar = thread_container.find("ul", class_="ui-pagination")
-            next_btn = control_bar.find("li", class_="next")
+            next_btn = control_bar.find("li", class_="ui-pagination-next")
 
             if "state-disabled" in next_btn["class"]:
                 pages_remaining = False
             else:
                 next_page_href = next_btn.find("a")["href"]
-                next_page_url = base_url + next_page_href
+                next_page_url = next_page_href
                 logger.info(f"Getting source for {next_page_url}")
                 source = await manager.get_source(next_page_url)
                 thread_container = source.find(
