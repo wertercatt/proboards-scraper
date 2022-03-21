@@ -178,9 +178,9 @@ class Database:
                     "name": "Snake Plissken",
                     "username": "snake",
                 }
-                
+
                 new_user = User(**user_data)
-                
+
                 db = Database("forum.db")
                 inserted, new_user = db.insert(
                     new_user,
@@ -423,7 +423,7 @@ class Database:
             f"Post {post.id} (thread {post.thread_id}, user {post.user_id})",
             inserted)
         return post
-        
+
     def insert_like(self, like_: dict, update: bool = False) -> Post:
         """
         Insert a like into the database; this method wraps :meth:`insert`.
