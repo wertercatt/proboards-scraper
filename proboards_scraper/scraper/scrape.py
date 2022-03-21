@@ -362,7 +362,7 @@ async def scrape_thread(url: str, manager: ScraperManager) -> None:
 
     if check is not None:
         print("Thread is in database.")
-        return
+        #return
 
     # Polls are loaded with the aid of JavaScript; if the thread contains
     # a poll, we ust selenium/Chrome to get the source. However, the source
