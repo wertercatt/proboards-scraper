@@ -405,7 +405,7 @@ class Database:
         )
         return poll_voter
 
-    def insert_post(self, post_: dict, update: bool = False) -> Post:
+    def insert_post(self, post_: dict, update: bool = True) -> Post:
         """
         Insert a post into the database; this method wraps :meth:`insert`.
 

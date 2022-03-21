@@ -267,7 +267,7 @@ async def scrape_users(url: str, manager: ScraperManager) -> None:
 
         for member_url in member_urls:
             await scrape_user(member_url, manager)
-        
+
         '''
         loop = asyncio.get_running_loop()
         tasks = []
@@ -362,7 +362,7 @@ async def scrape_thread(url: str, manager: ScraperManager) -> None:
 
     if check is not None:
         print("Thread is in database.")
-        return
+        #return
 
     # Polls are loaded with the aid of JavaScript; if the thread contains
     # a poll, we ust selenium/Chrome to get the source. However, the source
@@ -483,13 +483,13 @@ async def scrape_thread(url: str, manager: ScraperManager) -> None:
         else:
             user_likes = like_.find_elements_by_class_name("user-link")
             users = [x.get_attribute("href").split("/")[-1] for x in user_likes]
-        
+
         return users
-        
+
     pages_remaining = True
     while pages_remaining:
         post_likes = {}
-        
+
         for like_ in manager.driver.find_elements_by_class_name("likes"):
             element = like_
             while True:
@@ -498,7 +498,7 @@ async def scrape_thread(url: str, manager: ScraperManager) -> None:
                     classes = element.get_attribute("class").split(" ")
                     if "post" in classes:
                         break
-                        
+
             post_id = element.get_attribute("id")
             pid = post_id.split("-")[1]
             users = parse_likes(like_)
@@ -510,27 +510,27 @@ async def scrape_thread(url: str, manager: ScraperManager) -> None:
                     "type": "like",
                     "id": post_id + "-" + user_id,
                     "post_id": int(post_id),
-                    "user_id": int(user_id),                    
+                    "user_id": int(user_id),
                 }
                 await manager.content_queue.put(like_)
 
         posts = post_container.findAll("tr", class_="post")
 
-        for post_ in posts:      
-        
+        for post_ in posts:
+
             # Each post <tr> tag has an id attribute of the form
             # <tr id="post-1234">, where 1234 is the post id.
             post_id = int(post_["id"].split("-")[1])
 
             # "left panel" contains info about the user who made the post.
             left_panel = post_.find("td", class_="left-panel")
-            
+
             deleted_user=False
-            
+
             if guest_ := left_panel.find("span", class_="user-guest"):
                 guest_user_name = guest_.text
                 guest_id = manager.insert_guest(guest_user_name)
-                user_id = guest_id                
+                user_id = guest_id
             elif(left_panel.find("div", class_="deleted-mini-profile")):
                 user_id = -1
                 deleted_user=True
@@ -562,7 +562,7 @@ async def scrape_thread(url: str, manager: ScraperManager) -> None:
                 edit_user_anchor = edited_by.find("a")
 
                 if edit_user_anchor is None:
-                
+
                     if deleted_user:
                         edit_user_href="Deleted User"
                         edit_user_id=-1
