@@ -11,7 +11,11 @@ import aiohttp
 import bs4
 import selenium.webdriver
 import undetected_chromedriver as uc
-DRIVER = uc.Chrome()
+
+#path_to_extension = "../adblock/adblock.crx"
+chrome_options = uc.ChromeOptions()
+#chrome_options.add_extension(path_to_extension)
+DRIVER = uc.Chrome(options=chrome_options)
 
 logger = logging.getLogger(__name__)
 
@@ -171,10 +175,30 @@ async def get_source(
     # TODO: check response HTTP status code
     #resp = await session.get(url)
     #text = await resp.text()
-   
+
     driver = get_chrome_driver()
+    
+    #driver.set_page_load_timeout(8)
+    #attempts=12
+
+    #finished = False
+    #while not finished or attempts > 0:
+    #    try:
+    #        attempts -= 1
+    #        driver.get(url)
+    #        finished = True
+    #    except:
+    #        time.sleep(3)
+
+    #if not finished and attempts == 0:
+    #    try:
+    #        driver.get(url)
+    #    except TimeoutException as e:
+    #        pass
+
     driver.get(url)
     text = driver.page_source
+
     return bs4.BeautifulSoup(text, "html.parser")
 
 

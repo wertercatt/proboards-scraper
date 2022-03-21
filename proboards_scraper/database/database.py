@@ -7,7 +7,7 @@ import sqlalchemy.orm
 
 from .schema import (
     Base, Avatar, Board, Category, CSS, Image, Moderator, Poll, PollOption,
-    PollVoter, Post, ShoutboxPost, Thread, User, Like
+    PollVoter, Post, ShoutboxPost, Thread, User, Like, Check
 )
 
 
@@ -38,7 +38,8 @@ def serialize(
             * :class:`Thread`
             * :class:`User`
             * :class:`Like`
-            
+            * :class:`Check`
+
     Returns: Serialized version of the object (or list of objects).
     """
     if isinstance(
@@ -442,6 +443,25 @@ class Database:
             inserted)
         return like
 
+    def insert_check(self, check_: dict, update: bool = True) -> Check:
+        """
+        Insert a check into the database; this method wraps :meth:`insert`.
+
+        Args:
+            check\_: A dict containing the keyword args (attributes) needed to
+                instantiate a :class:`Check` object.
+            update: See :meth:`insert`.
+
+        Returns:
+            The inserted (or updated) :class:`Check` object.
+        """
+        check = Check(**check_)
+        inserted, check = self.insert(check, update=update)
+        self._insert_log_msg(
+            f"check {check.id} (date {check.date})", inserted)
+        return check
+
+
     def insert_shoutbox_post(
         self, shoutbox_post_: dict, update: bool = False
     ) -> ShoutboxPost:
@@ -479,7 +499,7 @@ class Database:
         self._insert_log_msg(f"Thread {thread.title}", inserted)
         return thread
 
-    def insert_user(self, user_: dict, update: bool = False) -> User:
+    def insert_user(self, user_: dict, update: bool = True) -> User:
         """
         Insert a user into the database; this method wraps :meth:`insert`.
 
@@ -567,6 +587,24 @@ class Database:
             result = result.filter_by(id=user_id).first()
         else:
             result = result.all()
+        return serialize(result)
+
+    def query_check(self, cid, type=None) -> dict:
+        """
+        Return result of a check query.
+
+        Args:
+            cid: A check id.
+            type: Check type (ex. "thread").
+        Returns:
+            A dict corresponding to the result of the query. 
+            If no result found, None is returned.
+        """
+        result = self.session.query(Check)
+
+        if cid is not None:
+            result = result.filter_by(id=type + "-" + str(cid)).first()
+
         return serialize(result)
 
     def query_boards(
